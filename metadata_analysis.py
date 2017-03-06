@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 Script to analyze HBP product metadata. Data is supplied by exports from Product Information Management software,
 which end up as CSVs in the '/input' directory. From there, this script outputs CSVs which can be read by Tableau

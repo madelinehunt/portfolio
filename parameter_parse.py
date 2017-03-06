@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 Because parameters have been transformed into functions in distrib_data.py,
 this script imports and runs all functions in distrib_data to extract their data, 
