@@ -1,0 +1,33 @@
+body {
+    font-family: Helvetica, "Helvetica", sans-serif;
+    font-size: 14px;
+}
+
+.wiki-content,
+.wiki-content table,
+.wiki-content tr,
+.wiki-content td,
+.wiki-content th,
+ {
+    font-size: 14px;
+}
+
+.wiki-content ul,
+.wiki-content li,
+.wiki-content ol,
+.wiki-content p,
+p {
+  font-family: Helvetica, "Helvetica", sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.wiki-content table.smallFont,
+.wiki-content .smallFont tr,
+.wiki-content .smallFont td,
+.wiki-content .smallFont th,
+.wiki-content .smallFont ol,
+.wiki-content .smallFont ul,
+.wiki-content .smallFont li {
+  font-size: 12px;
+}
