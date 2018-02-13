@@ -1,7 +1,4 @@
 # -*- coding: utf-8 -*-
-'''
-'''
-
 #%% add required libraries
 import pandas as pd
 from pim.file_io import pim_raw_load, return_already_exported, transform_and_export
@@ -10,12 +7,21 @@ from pim.file_check import old_or_missing
 
 class PimData(object):
     '''
-    A test of an OOP approach to this script
+    Defines a new obect to hold data from Prodcut Information Management software (PIM). This will have Pandas DataFrames
+    as attributes. 
     '''
     
     def __init__(self,list_of_dfs=['products','taxonomy','relationships','contributors','categories'],fill_na_flag=True,bypass_check=False):
         
-        # performs validation on parameters passed to this function
+        '''
+        Initializes a new PimData object. 
+        
+        @param list_of_dfs: a list of DataFrames to add as attributes (default is all PIM DataFrames)
+        @param fill_na_flag: boolean operator to define whether to add Pandas' df.fillna('') to DataFrame creation (default == True)
+        @param bypass_check: boolean operator to define whether to skip checking file dates on raw data files on processed data files
+        '''
+        
+        # performs validation on arguments passed to this function
         if type(list_of_dfs) == str:
             list_of_dfs = [list_of_dfs]
         assert type(list_of_dfs) == list, 'TypeError: etl was not passed a list (or a string to be cast to single-element list) as an argument for list_of_dfs'
@@ -61,6 +67,14 @@ class PimData(object):
                 self.contributors = ret_dict[k]
     
     def add(self,list_of_dfs,fill_na_flag=True):
+        '''
+        A simple method to add Pandas DataFrame attributes if they were left out of the list_of_dfs passed to __init__
+        
+        @param list_of_dfs: a list of DataFrames to add as attributes
+        @param fill_na_flag: boolean operator to define whether to add Pandas' df.fillna('') to DataFrame creation (default == True)
+        '''
+        
+        # performs validation on arguments passed to this function
         if type(list_of_dfs) == str:
             list_of_dfs = [list_of_dfs]
         else:
@@ -100,7 +114,16 @@ class PimData(object):
             elif k == 'contributors':
                 self.contributors = ret_dict[k]
     
-    def manual_load(self,directory,list_of_dfs=['products','taxonomy','relationships','contributors','categories'],fill_na_flag=True,append=False,skip_processing=False):
+    def manual_load(self,directory,list_of_dfs=['products','taxonomy','relationships','contributors','categories'],fill_na_flag=True,append=True,skip_processing=False):
+        '''
+        Another simple method to manually specify which CSVs to read from. Useful when dealing with multiple sets of PIM data.
+        
+        @param directory: the absolute filepath to use when reading CSVs
+        @param list_of_dfs: a list of DataFrames to add as attributes (default is all)
+        @param fill_na_flag: boolean operator to define whether to add Pandas' df.fillna('') to DataFrame creation (default == True) 
+        @param append: a boolean operator to specify whether to replace current DataFrame attributes, or to add a new attribute as a dictionary of DataFrames (default == True)
+        @param skip_processing: a boolean operator to define whether to perform cleaning and processing of CSVs, or return them as raw (default == False)
+        '''
         if type(list_of_dfs) == str:
             list_of_dfs = [list_of_dfs]
         else:
@@ -116,7 +139,7 @@ class PimData(object):
         
         ret_dict = pim_raw_load(list_of_dfs,directory,fill_na_flag)
         if skip_processing != True:
-            ret_dict = transform_and_export(ret_dict)
+            ret_dict = transform_and_export(ret_dict,export=False) #processes DataFrames, but doesn't export them
         
         if append == False:
             for k in ret_dict.keys():
@@ -135,7 +158,11 @@ class PimData(object):
 
 
 #%%
-class superdf(pd.DataFrame):
+class pimDF(pd.DataFrame):
+    '''
+    In-progress. A subclass of pd.DataFrame with new methods specifically for PIM data.
+    '''
+    
         
     def sql_dump(self,db_name):
         remove_spaces = [re.sub(' ','',x) for x in self.columns]

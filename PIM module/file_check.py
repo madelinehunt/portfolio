@@ -3,6 +3,9 @@ import os
 import datetime
 
 def old_or_missing():
+    '''
+    A function to check whether the directory holding processed data CSVs is either empty or out-of-date. Returns a boolean. 
+    '''
     dest_path = '/Users/nathaniel.hunt/Box Sync/HBP Metadata Group/PIM Data'
     origin_path = '/Users/nathaniel.hunt/Box Sync/In progreſs/PIM Extracts/Current extract'
     etl_file_check = ['Categories dataset.csv',

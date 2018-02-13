@@ -4,6 +4,13 @@ import pandas as pd
 
 #%% 
 def pim_raw_load(list_of_dfs,path,fill_na_flag=True):
+    '''
+    A simple function to read PIM data from raw CSVs. Returns a dictionary of Pandas DataFrames.
+    
+    @param list_of_dfs: a list of DataFrames to add as attributes
+    @param path: the absolute filepath to use when reading CSVs
+    @param fill_na_flag: boolean operator to define whether to add Pandas' df.fillna('') to DataFrame creation (default == True)
+    '''
     files_dict = {'relationships':'alfresco_extract-association_.csv',
         'categories':'alfresco_extract-category_.csv',
         'contributors':'alfresco_extract-contributor_.csv',
@@ -22,6 +29,13 @@ def pim_raw_load(list_of_dfs,path,fill_na_flag=True):
 
 #%%
 def return_already_exported(list_of_dfs,fill_na_flag):
+    '''
+    A simple function to read PIM data from CSVs that have already been processed and exported. Returns a dictionary of Pandas DataFrames.
+    
+    @param list_of_dfs: a list of DataFrames to add as attributes
+    @param path: the absolute filepath to use when reading CSVs
+    @param fill_na_flag: boolean operator to define whether to add Pandas' df.fillna('') to DataFrame creation (default == True)
+    '''
     files_dict = {'categories':'Categories dataset.csv',
         'products':'Product dataset.csv',
         'relationships':'Relationship dataset.csv',
@@ -38,7 +52,15 @@ def return_already_exported(list_of_dfs,fill_na_flag):
     return ret_dict
             
 #%% 
-def transform_and_export(df_dict):
+def transform_and_export(df_dict,export=True):
+    '''
+    The main data-cleanup and processing function of the PIM module. Returns a dictionary of Pandas DataFrames.
+    
+    It works, but slowly, and eventually I want to rewrite it to be faster and more effecient. 
+    
+    @param df_dict: a dictionary of DataFrames from pim_raw_load() or PimData.manual_load()
+    @param export: a boolean operator to specify whether to export the cleansed and processed DataFrames (default == True)
+    '''
     products = df_dict['products']
     taxonomy = df_dict['taxonomy']
     categories = df_dict['categories']
@@ -196,7 +218,8 @@ def transform_and_export(df_dict):
     ret_dict['contributors'] = contributors
     ret_dict['he_products'] = he_products
     ret_dict['relationships'] = relationships
-    export(ret_dict)
+    if export == True:
+        export(ret_dict)
     return ret_dict
     
 def get_contr(row,contr_dict):
