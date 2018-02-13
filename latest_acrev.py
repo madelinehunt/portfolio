@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 '''
 This is a short script written to take in data from HBP's products data set, 

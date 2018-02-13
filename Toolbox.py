@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 '''
 A collection of data analysis cells (mostly independent of each other) which

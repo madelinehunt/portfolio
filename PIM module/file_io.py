@@ -1,104 +1,49 @@
-#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-'''
-A long script to extract, transform, and load data from HBP's 
-Product information Manager (PIM).
-This script adds column names, converts CSVs to use standard delimiters (','), 
-and creates new columns in the 'products' dataframe: for convenience, 
-these new columns include data from the other related dataframes 
-(e.g. a column listing the product relationships).
-'''
-import os
 import pandas as pd
-import re
-from dateutil import parser as date_parser
+# import os
 
-#%%
-def filing():
-    start = '/Users/nathaniel.hunt/Box Sync/In progreſs/PIM Extracts/Current extract/'
-    path = start
-    os.chdir(path)
-    return {'path': path}#, 'qa flag': qa_flag}
-
-#%%
-def io(qa_flag=False):
-    filing_dict = filing()
-    # qa_flag = filing_dict['qa flag']
-    path = filing_dict['path']
-    if old_or_missing() == True:
-        files_list = [str(path + f) for f in os.listdir(path) if '.csv' in f]
-        for f in files_list:
-            if 'product' in f:
-                products = pd.read_csv(f, low_memory=False, header=None, sep='^').fillna('')
-                products.index = range(1, len(products)+1)
-            elif 'taxonomy' in f:
-                taxonomy = pd.read_csv(f, low_memory=False, header=None, sep='^').fillna('')
-                taxonomy.index = range(1, len(taxonomy)+1)
-            elif 'association' in f:
-                relationships = pd.read_csv(f, low_memory=False, header=None, sep='^').fillna('')
-                relationships.index = range(1, len(relationships)+1)
-            elif 'contributor' in f:
-                contributors = pd.read_csv(f, low_memory=False, header=None, sep='^').fillna('')
-                contributors.index = range(1, len(contributors)+1)
-            elif 'category' in f:
-                categories = pd.read_csv(f, low_memory=False, header=None, sep='^').fillna('')
-                categories.index = range(1, len(categories)+1)
-        swap_dict = {}
-        swap_dict['products'] = products
-        swap_dict['taxonomy'] = taxonomy
-        swap_dict['categories'] = categories
-        swap_dict['relationships'] = relationships
-        swap_dict['contributors'] = contributors
-        ret_dict = process(swap_dict)
-        export(ret_dict)
+#%% 
+def pim_raw_load(list_of_dfs,path,fill_na_flag=True):
+    files_dict = {'relationships':'alfresco_extract-association_.csv',
+        'categories':'alfresco_extract-category_.csv',
+        'contributors':'alfresco_extract-contributor_.csv',
+        'products':'alfresco_extract-product_.csv',
+        'taxonomy':'alfresco_extract-taxonomy_.csv'}
+    ret_dict = {}
+    if path[-1] != '/':
+        path += '/'
+    if fill_na_flag == True:
+        for df in list_of_dfs:
+            ret_dict[df] = pd.read_csv(str(path+files_dict[df]),low_memory=False, header=None, sep='^').fillna('')
     else:
-        read_path = '/Users/nathaniel.hunt/Box Sync/HBP Metadata Group/PIM Data/'
-        ret_dict = {}
-        ret_dict['products'] = pd.read_csv(read_path+'Product dataset.csv',low_memory=False)
-        ret_dict['taxonomy'] = pd.read_csv(read_path+'Taxonomy dataset.csv',low_memory=False)
-        ret_dict['categories'] = pd.read_csv(read_path+'Categories dataset.csv',low_memory=False)
-        ret_dict['relationships'] = pd.read_csv(read_path+'Relationship dataset.csv',low_memory=False)
-        ret_dict['contributors'] = pd.read_csv(read_path+'Contributors dataset.csv',low_memory=False)
-        export(ret_dict)
-    if qa_flag == True:
-        ret_dict['qa'] = process(qa_load())
+        for df in list_of_dfs:
+            ret_dict[df] = pd.read_csv(str(path+files_dict[df]),low_memory=False, header=None, sep='^')
     return ret_dict
 
-def old_or_missing():
-    import datetime
-    dest_path = '/Users/nathaniel.hunt/Box Sync/HBP Metadata Group/PIM Data/'
-    origin_path = '/Users/nathaniel.hunt/Box Sync/In progreſs/PIM Extracts'
-    files = ['Categories dataset.csv',
-         'Product dataset.csv',
-         'Relationship dataset.csv',
-         'Taxonomy dataset.csv',
-         'Contributors dataset.csv']
-    truth = [x in os.listdir(dest_path) for x in files]
-    if False in truth:
-        files = [dest_path + '/' + x for x in os.listdir(dest_path) if '.DS' not in x]
-        times = [os.path.getctime(x) for x in files]
-        times = [datetime.datetime.utcfromtimestamp(x) for x in times]
-        if len(times) > 1:
-            pim_procd_date = max(times)
-            extract_files = [x for x in os.listdir('/Users/nathaniel.hunt/Box Sync/In progreſs/PIM Extracts/Current extract') if '.DS' not in x]
-            ex_times = [os.path.getctime(x) for x in extract_files]
-            ex_times = [datetime.datetime.utcfromtimestamp(x) for x in ex_times]
-            pim_raw_date = max(ex_times)
-            if pim_procd_date < pim_raw_date:
-                return True
-            else: 
-                return False
-        else:
-            return True
+#%%
+def return_already_exported(list_of_dfs,fill_na_flag):
+    files_dict = {'categories':'Categories dataset.csv',
+        'products':'Product dataset.csv',
+        'relationships':'Relationship dataset.csv',
+        'taxonomy':'Taxonomy dataset.csv',
+        'contributors':'Contributors dataset.csv'}
+    read_path = '/Users/nathaniel.hunt/Box Sync/HBP Metadata Group/PIM Data/'
+    ret_dict = {}
+    if fill_na_flag == True:
+        for df in list_of_dfs:
+            ret_dict[df] = pd.read_csv(str(read_path+files_dict[df]),low_memory=False).fillna('')
     else:
-        return False
-
-def process(swap_dict):
-    products = swap_dict['products']
-    taxonomy = swap_dict['taxonomy']
-    categories = swap_dict['categories']
-    relationships = swap_dict['relationships']
-    contributors = swap_dict['contributors']
+        for df in list_of_dfs:
+            ret_dict[df] = pd.read_csv(str(read_path+files_dict[df]),low_memory=False)
+    return ret_dict
+            
+#%% 
+def transform_and_export(df_dict):
+    products = df_dict['products']
+    taxonomy = df_dict['taxonomy']
+    categories = df_dict['categories']
+    relationships = df_dict['relationships']
+    contributors = df_dict['contributors']
     # guess at naming columns
     taxonomy.columns = ['Term ID','Term ID 2','Category','Term','Create Date','Last Mod Date']
     categories.columns = ['Category Type ID','Category Type','L1 ID','L1','L2 ID','L2','Last Mod Date']
@@ -106,7 +51,8 @@ def process(swap_dict):
     contributors.columns = ['Contributor ID','Contributor ID 2','Entity Type','First Name','Middle Name',
         'Last Name','Prefix','Suffix','Author Comments','HBS Faculty Indicator','Alias Indicator','Authornet ID',
         'HBS Faculty Year Left','Organization Name','Organization Comments','Create Date','Last Mod Date']
-    products.columns = ['CoreProd Part Number','Product ID','Availability Part Number','Availability ID','Format',
+    prod_col_extent = len(products.columns)
+    prod_cols = ['CoreProd Part Number','Product ID','Availability Part Number','Availability ID','Format',
         'Language','Core Product State','Availability Product State','Title','Abbreviated Title','Product Class',
         'Business Group','Marketing Category','Pre-Abstract','Abstract','Post-Abstract','Marketing Description',
         'Learning Objective Description','Event Begin Year','Event End Year','Company About Description 1',
@@ -139,6 +85,10 @@ def process(swap_dict):
         'Flash Asset', 'Multi Scenario','Multi User', 'Platform', 'External Resource Path', 'Instructional Videos',
         'Brochure', 'HE Marketing Best Seller', 'Student Preview', 'Instructor Preview', 'Parent Title Override',
         'Subtitle', 'Chapter Number','Free Trial', 'Has Test Bank','Executive Summary','Unit Value 3', 'Unit Value 4','Unit Value 5', 'Unit Type 3', 'Unit Type 4', 'Unit Type 5', 'Student Purchasable']
+    try:
+        products.columns = prod_cols[:prod_col_extent]
+    except:
+        print('Renaming Products DF failed--there were probably new columns added. Check the CSVs.')
     # drop redundant columns
     contributors = contributors.drop(['Contributor ID 2','Entity Type'],axis=1)
     taxonomy = taxonomy.drop(['Term ID 2'],axis=1)
@@ -246,8 +196,9 @@ def process(swap_dict):
     ret_dict['contributors'] = contributors
     ret_dict['he_products'] = he_products
     ret_dict['relationships'] = relationships
+    export(ret_dict)
     return ret_dict
-        
+    
 def get_contr(row,contr_dict):
     if row['Target'] in contr_dict.keys() and row['Association Type'] == 'Contributors':
         if row['Role'] != '':
@@ -295,36 +246,6 @@ def get_rela_rela(x,rel_dict):
     else:
         return ''
 
-#%%
-def qa_load():
-    path = '/Users/nathaniel.hunt/Box Sync/In progreſs/PIM Extracts/QA cutover/Old QA Data/'
-    files_list = [str(path + f) for f in os.listdir(path) if '.csv' in f]
-    for f in files_list:
-        if 'product' in f:
-            products = pd.read_csv(f, low_memory=False, header=None, sep='^').fillna('')
-            products.index = range(1, len(products)+1)
-        elif 'taxonomy' in f:
-            taxonomy = pd.read_csv(f, low_memory=False, header=None, sep='^').fillna('')
-            taxonomy.index = range(1, len(taxonomy)+1)
-        elif 'association' in f:
-            relationships = pd.read_csv(f, low_memory=False, header=None, sep='^').fillna('')
-            relationships.index = range(1, len(relationships)+1)
-        elif 'contributor' in f:
-            contributors = pd.read_csv(f, low_memory=False, header=None, sep='^').fillna('')
-            contributors.index = range(1, len(contributors)+1)
-        elif 'category' in f:
-            categories = pd.read_csv(f, low_memory=False, header=None, sep='^').fillna('')
-            categories.index = range(1, len(categories)+1)
-    swap_dict = {}
-    swap_dict['products'] = products
-    swap_dict['taxonomy'] = taxonomy
-    swap_dict['categories'] = categories
-    swap_dict['relationships'] = relationships
-    swap_dict['contributors'] = contributors
-    swap_dict['relationships'] = relationships
-    return swap_dict
-    
-    
 def export(ret_dict):
     products = ret_dict['products']
     taxonomy = ret_dict['taxonomy']
@@ -338,3 +259,4 @@ def export(ret_dict):
     categories.to_csv(dest_path + 'Categories dataset.csv',index=False)
     taxonomy.to_csv(dest_path + 'Taxonomy dataset.csv',index=False)
     contributors.to_csv(dest_path + 'Contributors dataset.csv',index=False)
+    
