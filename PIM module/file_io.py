@@ -56,8 +56,6 @@ def transform_and_export(df_dict,export=True):
     '''
     The main data-cleanup and processing function of the PIM module. Returns a dictionary of Pandas DataFrames.
     
-    It works, but slowly, and eventually I want to rewrite it to be faster and more effecient. 
-    
     @param df_dict: a dictionary of DataFrames from pim_raw_load() or PimData.manual_load()
     @param export: a boolean operator to specify whether to export the cleansed and processed DataFrames (default == True)
     '''
@@ -110,50 +108,46 @@ def transform_and_export(df_dict,export=True):
     try:
         products.columns = prod_cols[:prod_col_extent]
     except:
-        print('Renaming Products DF failed--there were probably new columns added. Check the CSVs.')
+        print('Renaming Products DF columns failed--there were probably new columns added. Check the CSVs.')
     # drop redundant columns
     contributors = contributors.drop(['Contributor ID 2','Entity Type'],axis=1)
     taxonomy = taxonomy.drop(['Term ID 2'],axis=1)
     relationships = relationships.drop(['NA'],axis=1)
     products = products.drop(['CoreProd Part Number'],axis=1)
-    
-    # he and he_current
-    he_products = products[products['Business Group'] == 'Higher Education']
-    he_current = he_products[he_products['Status'] == 'C']
-    he_current = he_current[he_current['Core Product State'] == 'Approved (All)']
-    he_current = he_current[he_current['Availability Product State'] == 'Approved (All)']
         
     # pulling in information from other datasets into products datasets
 
-    # construct dicts
-    catg_dict = {}
-    for i in [x for x in list(categories['L2 ID']) if x != '']:
-        select = categories[categories['L2 ID'] == i]
-        catg_dict[str(i).split('.')[0]] = '^'.join([select['Category Type'].iloc[0]] + [select['L1'].iloc[0]] + [select['L2'].iloc[0]])
-    for i in [x for x in list(categories['L1 ID']) if x != '' and str(x).split('.')[0] not in catg_dict.keys()]:
-        select = categories[categories['L1 ID'] == i]
-        catg_dict[str(i).split('.')[0]] = '^'.join([select['Category Type'].iloc[0]] + [select['L1'].iloc[0]]) + '^'
-    for i in [x for x in list(categories['Category Type ID']) if x != '' and str(x).split('.')[0] not in catg_dict.keys()]:
-        select = categories[categories['Category Type ID'] == i]
-        catg_dict[str(i).split('.')[0]] = '^'.join([select['Category Type'].iloc[0]]) + '^' + '^'
+    # construct series objects
+    #%% category Series
+    catg_series = pd.Series()
+    l2s = categories[categories['L2 ID'] != '']
+    l2s.index = l2s['L2 ID'].astype(int).astype(str)
+    catg_series = catg_series.append(l2s.apply(lambda x: '^'.join( [x['Category Type'], x['L1'], x['L2']] ), axis=1))
 
-    taxo_dict = {}
-    for i in list(taxonomy['Term ID']):
-        select = taxonomy[taxonomy['Term ID'] == i]
-        taxo_dict[str(i)] = select['Category'].iloc[0] + '/' + select['Term'].iloc[0]
+    l1s = categories[(categories['L1 ID'] != '') & (categories['L2 ID'] == '')]
+    l1s.index = l1s['L1 ID'].astype(int).astype(str)
+    catg_series = catg_series.append(l1s.apply(lambda x: '^'.join( [x['Category Type'], x['L1']] ) + '^', axis=1)).sort_index()
 
-    contr_dict = {}
-    non_empty = contributors[contributors['Last Name'] != '']
-    for i in list(non_empty['Contributor ID']):
-        select = non_empty[non_empty['Contributor ID'] == i]
-        name_list = []
-        name_list.append(str(select['Contributor ID'].iloc[0]))
-        for n in [select['First Name'].iloc[0], select['Middle Name'].iloc[0],select['Last Name'].iloc[0]]:
-            if n != '':
-                name_list.append(n)
-        contr_dict[str(i)] = ' '.join(name_list)
-            
-    #
+    types = categories[(categories['Category Type ID'].astype(str) != '') & (categories['L1 ID'] == '') & (categories['L2 ID'] == '')]
+    types.index = types['Category Type ID'].astype(int).astype(str)
+    catg_series = catg_series.append(types.apply(lambda x: x['Category Type'] + '^' + '^', axis=1)).sort_index()
+    catg_series.name = 'Category'
+
+    #%% taxo Series
+    taxo_tmp = taxonomy.copy()
+    taxo_tmp.index = taxo_tmp['Term ID'].astype(str)
+    taxo_series = taxo_tmp.apply(lambda x: x['Category'] + '/' + x['Term'],axis=1).sort_index()
+    taxo_series = taxo_series[taxo_series.index != '0']
+    taxo_series.name = 'Taxonomy Terms'
+
+    #%% contributor Series
+    non_empty = contributors[contributors['Last Name'] != ''].copy()
+    non_empty.index = non_empty['Contributor ID'].astype(str)
+    contr_series = non_empty.apply(lambda x: ' '.join( [str( x['Contributor ID'] ), x['First Name'], x['Middle Name'], x['Last Name']]) if x['Middle Name'] != '' else ' '.join( [str( x['Contributor ID'] ), x['First Name'], x['Last Name'] ]), axis=1 )
+    contr_series = contr_series.apply(lambda x: x.replace('  ', ' ')).sort_index()
+    contr_series.name = 'Contributors'
+
+    #%%    
     include_list = [
         'Allows Purchase Of',
         'Also Recommended (Cross-Sell)',
@@ -176,110 +170,65 @@ def transform_and_export(df_dict,export=True):
         'Teaching Instruction For'
      ]
 
-    relationships['Contributors'] = '' 
-    relationships['Taxonomy'] = ''
-    relationships['Categories'] = ''
-    relationships['Relationships'] = ''
-    relationships.Contributors = relationships.apply(get_contr, args=(contr_dict,),axis=1)
-    relationships.Categories = relationships.Target.apply(get_catg, args=(catg_dict,))
-    relationships.Taxonomy = relationships.Target.apply(get_taxo, args=(taxo_dict,))
-    relationships.Relationships = relationships.apply(get_rela, args=(include_list,), axis=1)
+    #%% relationship Series
+    valid_rels = relationships[relationships['Association Type'].isin(include_list)]
+    rel_series = valid_rels.groupby('Base').apply(
+            lambda x: '^'.join(
+                [i + ' ' + j for i,j in zip(x['Target'], x['Association Type'])]
+                )  
+            )
+    rel_series.name = 'Relationships'
 
-    #
-    rel_dict = {}
-    test = relationships.groupby('Base')
-    for key, item in test:
-        rel_dict[key] = {}
-        rel_dict[key]['Taxonomy'] = '^'.join([x for x in list(item['Taxonomy']) if x != ''])
-        rel_dict[key]['Contributors'] = '^'.join([x for x in list(item['Contributors']) if x != ''])
-        catg_lookups = '^'.join([x for x in list(item['Categories']) if x != ''])
-        if len(catg_lookups) > 0:
-            if list(catg_lookups)[-2] == '^':
-                catg_lookups = '^'.join(catg_lookups.split('^')[:-2])
-            elif list(catg_lookups)[-1] == '^':
-                catg_lookups = '^'.join(catg_lookups.split('^')[:-1])
-        rel_dict[key]['Categories'] = catg_lookups
-        rel_dict[key]['Relationships'] = '^'.join([x for x in list(item['Relationships']) if x != ''])
+    #%%
+    gr1 = valid_rels.join(rel_series,on = 'Target',how='left').fillna('')
+    gr2 = relationships[(~relationships['Association Type'].isin(include_list)) & (relationships['Association Type'].isin([catg_series.name,taxo_series.name,contr_series.name]))]
+    gr3 = relationships[(~relationships.index.isin(gr1.index)) & (~relationships.index.isin(gr2.index))]
 
-    #
-    products['Contributors'] = ''
-    products['Taxonomy'] = ''
-    products['Categories'] = ''
-    products['Relationships'] = ''
-    products.Contributors = products['Product ID'].apply(get_rela_contr, args=(rel_dict,))
-    products.Categories = products['Product ID'].apply(get_rela_catg, args=(rel_dict,))
-    products.Taxonomy = products['Product ID'].apply(get_rela_taxo, args=(rel_dict,))
-    products.Relationships = products['Product ID'].apply(get_rela_rela,args=(rel_dict,))
+
+    #%%
+    for s in [catg_series,taxo_series,contr_series]:
+        t = prepare_join(s,s.name)
+        gr2 = gr2.merge(t,on=['Target','Association Type'],how='left')
+    gr2 = gr2.fillna('')
+
+    #%% joining all series into products dataframe
+    products = products.join(rel_series, on = 'Product ID', how='left')
+    for s in ['Category','Taxonomy Terms','Contributors']:
+        products = products.join(prepare_join_products(gr2,s), on = 'Product ID', how='left')
     
+    #%%
+    products = products.fillna('')
+    products = products.rename(columns={'Taxonomy Terms':'Taxonomy','Category':'Categories'})
+    relationships = pd.concat([gr1,gr2,gr3]).fillna('').drop_duplicates()
+    #%%
     ret_dict = {}
     ret_dict['products'] = products
     ret_dict['taxonomy'] = taxonomy
     ret_dict['categories'] = categories
     ret_dict['contributors'] = contributors
-    ret_dict['he_products'] = he_products
     ret_dict['relationships'] = relationships
     if export == True:
         export(ret_dict)
     return ret_dict
-    
-def get_contr(row,contr_dict):
-    if row['Target'] in contr_dict.keys() and row['Association Type'] == 'Contributors':
-        if row['Role'] != '':
-            return contr_dict[row['Target']] + ' (' + row['Role'] + ')'
-        else:
-            return contr_dict[row['Target']]
-    else:
-        return ''
-
-def get_catg(x,catg_dict):
-    if x in catg_dict.keys():
-        return catg_dict[x]
-    else:
-        return ''
-        
-def get_taxo(x,taxo_dict):
-    if x in taxo_dict.keys():
-        return taxo_dict[x]
-    else:
-        return ''
-
-def get_rela(row,include_list):
-    if row['Association Type'] in include_list:
-        return row['Target'] + ' ' + row['Association Type']
-    else:
-        return ''
-def get_rela_contr(x,rel_dict):
-    if x in rel_dict.keys():
-        return rel_dict[x]['Contributors']
-    else:
-        return ''
-def get_rela_taxo(x,rel_dict):
-    if x in rel_dict.keys():
-        return rel_dict[x]['Taxonomy']
-    else:
-        return ''
-def get_rela_catg(x,rel_dict):
-    if x in rel_dict.keys():
-        return rel_dict[x]['Categories']
-    else:
-        return ''
-def get_rela_rela(x,rel_dict):
-    if x in rel_dict.keys():
-        return rel_dict[x]['Relationships']
-    else:
-        return ''
 
 def export(ret_dict):
-    products = ret_dict['products']
-    taxonomy = ret_dict['taxonomy']
-    categories = ret_dict['categories']
-    relationships = ret_dict['relationships']
-    contributors = ret_dict['contributors']
-    relationships = ret_dict['relationships']
     dest_path = '/Users/nathaniel.hunt/Box Sync/HBP Metadata Group/PIM Data/'
-    products.to_csv(dest_path + 'Product dataset.csv',index=False)
-    relationships.to_csv(dest_path + 'Relationship dataset.csv',index=False)
-    categories.to_csv(dest_path + 'Categories dataset.csv',index=False)
-    taxonomy.to_csv(dest_path + 'Taxonomy dataset.csv',index=False)
-    contributors.to_csv(dest_path + 'Contributors dataset.csv',index=False)
-    
+    ret_dict['products'].to_csv(dest_path + 'Product dataset.csv',index=False)
+    ret_dict['taxonomy'].to_csv(dest_path + 'Taxonomy dataset.csv',index=False)
+    ret_dict['categories'].to_csv(dest_path + 'Categories dataset.csv',index=False)
+    ret_dict['contributors'].to_csv(dest_path + 'Contributors dataset.csv',index=False)
+    ret_dict['relationships'].to_csv(dest_path + 'Relationship dataset.csv',index=False)
+#%%
+def prepare_join(srs,desc):    
+    tmp = pd.DataFrame(data=srs)
+    tmp = tmp.reset_index()
+    tmp = tmp.rename(columns={tmp.columns[0]: 'Target'})
+    tmp['Association Type'] = desc
+    return tmp
+
+def prepare_join_products(gr2,col):
+    srs = gr2[gr2['Association Type'] == col].groupby('Base').apply(
+            lambda x: '^'.join(x[col] )
+            )
+    srs.name = col
+    return srs.sort_index()
